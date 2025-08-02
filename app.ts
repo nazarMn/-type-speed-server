@@ -93,6 +93,36 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
+app.post('/api/login', async (req, res) => {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+        return res.status(400).json({ message: 'Всі поля обовʼязкові!' });
+    }
+
+    try {
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(400).json({ message: 'Користувача не знайдено' });
+        }
+
+        const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+        if (!isPasswordValid) {
+            return res.status(400).json({ message: 'Невірний пароль' }); 
+        }
+
+        const token = jwt.sign({ id: user._id }, 'SECRET_KEY', { expiresIn: '7d' });
+
+        res.status(200).json({ 
+            message: 'Успішний вхід!',
+            token,
+            user: { id: user._id, email: user.email, username: user.username }
+        });
+
+    } catch (error) {
+        res.status(500).json({ message: 'Помилка сервера', error: error.message });
+    }
+});
 
 
 app.get('/', (req, res) => {

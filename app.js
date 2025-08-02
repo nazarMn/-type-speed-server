@@ -155,6 +155,45 @@ app.post('/api/register', function (req, res) { return __awaiter(_this, void 0, 
         }
     });
 }); });
+app.post('/api/login', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
+    var _a, email, password, user, isPasswordValid, token, error_4;
+    return __generator(this, function (_b) {
+        switch (_b.label) {
+            case 0:
+                _a = req.body, email = _a.email, password = _a.password;
+                if (!email || !password) {
+                    return [2 /*return*/, res.status(400).json({ message: 'Всі поля обовʼязкові!' })];
+                }
+                _b.label = 1;
+            case 1:
+                _b.trys.push([1, 4, , 5]);
+                return [4 /*yield*/, User.findOne({ email: email })];
+            case 2:
+                user = _b.sent();
+                if (!user) {
+                    return [2 /*return*/, res.status(400).json({ message: 'Користувача не знайдено' })]; // changed
+                }
+                return [4 /*yield*/, bcrypt.compare(password, user.passwordHash)];
+            case 3:
+                isPasswordValid = _b.sent();
+                if (!isPasswordValid) {
+                    return [2 /*return*/, res.status(400).json({ message: 'Невірний пароль' })]; // changed
+                }
+                token = jwt.sign({ id: user._id }, 'SECRET_KEY', { expiresIn: '7d' });
+                res.status(200).json({
+                    message: 'Успішний вхід!',
+                    token: token,
+                    user: { id: user._id, email: user.email, username: user.username }
+                });
+                return [3 /*break*/, 5];
+            case 4:
+                error_4 = _b.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_4.message });
+                return [3 /*break*/, 5];
+            case 5: return [2 /*return*/];
+        }
+    });
+}); });
 app.get('/', function (req, res) {
     res.status(200).json({ message: 'Hello World!' });
 });
