@@ -39,6 +39,8 @@ var express = require('express');
 var app = express();
 var cors = require('cors');
 var mongoose = require('mongoose');
+var bcrypt = require('bcryptjs');
+var jwt = require('jsonwebtoken');
 mongoose.connect('mongodb+srv://root:9ZxY2VeU0Eqp6Hxl@cluster0.mjxa3iv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0', {
     useNewUrlParser: true,
     useUnifiedTopology: true
@@ -100,6 +102,56 @@ app.get('/api/random-text', function (req, res) { return __awaiter(_this, void 0
                 res.status(500).json({ message: 'Error fetching random text', error: error_2.message });
                 return [3 /*break*/, 4];
             case 4: return [2 /*return*/];
+        }
+    });
+}); });
+var userSchema = new mongoose.Schema({
+    email: { type: String, required: true, unique: true },
+    username: { type: String, required: true },
+    passwordHash: { type: String, required: true },
+    date: { type: Date, default: Date.now }
+});
+var User = mongoose.model('User', userSchema);
+app.post('/api/register', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
+    var _a, email, username, password, existingUser, salt, passwordHash, newUser, token, error_3;
+    return __generator(this, function (_b) {
+        switch (_b.label) {
+            case 0:
+                _a = req.body, email = _a.email, username = _a.username, password = _a.password;
+                if (!email || !username || !password) {
+                    return [2 /*return*/, res.status(400).json({ message: 'Всі поля обовʼязкові!' })];
+                }
+                _b.label = 1;
+            case 1:
+                _b.trys.push([1, 6, , 7]);
+                return [4 /*yield*/, User.findOne({ email: email })];
+            case 2:
+                existingUser = _b.sent();
+                if (existingUser) {
+                    return [2 /*return*/, res.status(400).json({ message: 'Користувач з таким email вже існує!' })];
+                }
+                return [4 /*yield*/, bcrypt.genSalt(10)];
+            case 3:
+                salt = _b.sent();
+                return [4 /*yield*/, bcrypt.hash(password, salt)];
+            case 4:
+                passwordHash = _b.sent();
+                newUser = new User({ email: email, username: username, passwordHash: passwordHash });
+                return [4 /*yield*/, newUser.save()];
+            case 5:
+                _b.sent();
+                token = jwt.sign({ id: newUser._id }, 'SECRET_KEY', { expiresIn: '7d' });
+                res.status(201).json({
+                    message: 'Користувача створено!',
+                    token: token,
+                    user: { id: newUser._id, email: newUser.email, username: newUser.username }
+                });
+                return [3 /*break*/, 7];
+            case 6:
+                error_3 = _b.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_3.message });
+                return [3 /*break*/, 7];
+            case 7: return [2 /*return*/];
         }
     });
 }); });

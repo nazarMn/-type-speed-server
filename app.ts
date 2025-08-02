@@ -2,6 +2,8 @@ const express = require('express');
 const app = express();
 const cors = require('cors');
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 mongoose.connect('mongodb+srv://root:9ZxY2VeU0Eqp6Hxl@cluster0.mjxa3iv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0', {
     useNewUrlParser: true,
@@ -48,6 +50,49 @@ app.get('/api/random-text', async (req, res) => {
         res.status(500).json({ message: 'Error fetching random text', error: error.message });
     }
 });
+
+
+const userSchema = new mongoose.Schema({
+    email: { type: String, required: true, unique: true },
+    username: { type: String, required: true },
+    passwordHash: { type: String, required: true },
+    date: { type: Date, default: Date.now }
+});
+
+const User = mongoose.model('User', userSchema);
+
+app.post('/api/register', async (req, res) => {
+    const { email, username, password } = req.body;
+
+    if (!email || !username || !password) {
+        return res.status(400).json({ message: 'Всі поля обовʼязкові!' });
+    }
+
+    try {
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({ message: 'Користувач з таким email вже існує!' });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const passwordHash = await bcrypt.hash(password, salt);
+
+        const newUser = new User({ email, username, passwordHash });
+        await newUser.save();
+
+        const token = jwt.sign({ id: newUser._id }, 'SECRET_KEY', { expiresIn: '7d' });
+
+        res.status(201).json({ 
+            message: 'Користувача створено!',
+            token,
+            user: { id: newUser._id, email: newUser.email, username: newUser.username }
+        });
+
+    } catch (error) {
+        res.status(500).json({ message: 'Помилка сервера', error: error.message });
+    }
+});
+
 
 
 app.get('/', (req, res) => {
