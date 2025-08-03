@@ -124,6 +124,34 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
+const authMiddleware = (req, res, next) => {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+        return res.status(401).json({ message: 'Немає токена' });
+    }
+
+    try {
+        const decoded = jwt.verify(token, 'SECRET_KEY');
+        req.userId = decoded.id;
+        next();
+    } catch (error) {
+        res.status(401).json({ message: 'Невірний токен' });
+    }
+};
+
+app.get('/api/me', authMiddleware, async (req, res) => {
+    try {
+        const user = await User.findById(req.userId).select('-passwordHash');
+        if (!user) {
+            return res.status(404).json({ message: 'Користувача не знайдено' });
+        }
+        res.json(user);
+    } catch (error) {
+        res.status(500).json({ message: 'Помилка сервера', error: error.message });
+    }
+});
+
+
 
 app.get('/', (req, res) => {
     res.status(200).json({ message: 'Hello World!' });
