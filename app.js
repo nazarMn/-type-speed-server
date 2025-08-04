@@ -231,6 +231,51 @@ app.get('/api/me', authMiddleware, function (req, res) { return __awaiter(_this,
         }
     });
 }); });
+var nodemailer = require('nodemailer');
+// 👉 для відправки email (тестова SMTP-пошта)
+var transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: 'nazarmn2008@gmail.com', // ❗️твій email
+        pass: 'hgwo vvsi tipt gldm ' // ❗️пароль застосунку (не твій email-пароль!)
+    }
+});
+// 👉 magic-link endpoint
+app.post('/api/magic-link', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
+    var email, user, token, link, error_6;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0:
+                email = req.body.email;
+                _a.label = 1;
+            case 1:
+                _a.trys.push([1, 4, , 5]);
+                return [4 /*yield*/, User.findOne({ email: email })];
+            case 2:
+                user = _a.sent();
+                if (!user) {
+                    return [2 /*return*/, res.status(404).json({ message: 'Користувача не знайдено' })];
+                }
+                token = jwt.sign({ id: user._id }, 'SECRET_KEY', { expiresIn: '15m' });
+                link = "http://localhost:5173/magic-login?token=".concat(token);
+                return [4 /*yield*/, transporter.sendMail({
+                        from: 'TypeSpeed <yourEmail@gmail.com>',
+                        to: email,
+                        subject: 'Magic Link для входу',
+                        html: "<p>\u041D\u0430\u0442\u0438\u0441\u043D\u0438 \u043D\u0430 \u043F\u043E\u0441\u0438\u043B\u0430\u043D\u043D\u044F \u0434\u043B\u044F \u0432\u0445\u043E\u0434\u0443 \u0431\u0435\u0437 \u043F\u0430\u0440\u043E\u043B\u044F:</p>\n                   <a href=\"".concat(link, "\">\u0423\u0432\u0456\u0439\u0442\u0438</a><br><small>\u041B\u0456\u043D\u043A \u0434\u0456\u0439\u0441\u043D\u0438\u0439 15 \u0445\u0432</small>")
+                    })];
+            case 3:
+                _a.sent();
+                res.status(200).json({ message: 'Magic link відправлено на email' });
+                return [3 /*break*/, 5];
+            case 4:
+                error_6 = _a.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_6.message });
+                return [3 /*break*/, 5];
+            case 5: return [2 /*return*/];
+        }
+    });
+}); });
 app.get('/', function (req, res) {
     res.status(200).json({ message: 'Hello World!' });
 });

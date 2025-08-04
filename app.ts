@@ -152,6 +152,46 @@ app.get('/api/me', authMiddleware, async (req, res) => {
 });
 
 
+const nodemailer = require('nodemailer');
+
+// 👉 для відправки email (тестова SMTP-пошта)
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: 'nazarmn2008@gmail.com',       // ❗️твій email
+        pass: 'hgwo vvsi tipt gldm '            // ❗️пароль застосунку (не твій email-пароль!)
+    }
+});
+
+// 👉 magic-link endpoint
+app.post('/api/magic-link', async (req, res) => {
+    const { email } = req.body;
+
+    try {
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: 'Користувача не знайдено' });
+        }
+
+        const token = jwt.sign({ id: user._id }, 'SECRET_KEY', { expiresIn: '15m' });
+
+        const link = `http://localhost:5173/magic-login?token=${token}`; // 🔁 зміни на свій фронтенд URL
+
+        await transporter.sendMail({
+            from: 'TypeSpeed <yourEmail@gmail.com>',
+            to: email,
+            subject: 'Magic Link для входу',
+            html: `<p>Натисни на посилання для входу без пароля:</p>
+                   <a href="${link}">Увійти</a><br><small>Лінк дійсний 15 хв</small>`
+        });
+
+        res.status(200).json({ message: 'Magic link відправлено на email' });
+    } catch (error) {
+        res.status(500).json({ message: 'Помилка сервера', error: error.message });
+    }
+});
+
+
 
 app.get('/', (req, res) => {
     res.status(200).json({ message: 'Hello World!' });
