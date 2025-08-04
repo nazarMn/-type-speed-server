@@ -154,16 +154,14 @@ app.get('/api/me', authMiddleware, async (req, res) => {
 
 const nodemailer = require('nodemailer');
 
-// 👉 для відправки email (тестова SMTP-пошта)
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-        user: 'nazarmn2008@gmail.com',       // ❗️твій email
-        pass: 'hgwo vvsi tipt gldm '            // ❗️пароль застосунку (не твій email-пароль!)
+        user: 'nazarmn2008@gmail.com',
+        pass: 'hgwo vvsi tipt gldm '
     }
 });
 
-// 👉 magic-link endpoint
 app.post('/api/magic-link', async (req, res) => {
     const { email } = req.body;
 
@@ -175,7 +173,7 @@ app.post('/api/magic-link', async (req, res) => {
 
         const token = jwt.sign({ id: user._id }, 'SECRET_KEY', { expiresIn: '15m' });
 
-        const link = `http://localhost:5173/magic-login?token=${token}`; // 🔁 зміни на свій фронтенд URL
+        const link = `http://localhost:5173/magic-login?token=${token}`;
 
         await transporter.sendMail({
             from: 'TypeSpeed <yourEmail@gmail.com>',
