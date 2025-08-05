@@ -53,6 +53,7 @@ app.use(cors());
 app.use(express.json());
 var textSchema = new mongoose.Schema({
     text: { type: String, required: true },
+    lang: { type: String, required: true }, // Додали поле мови
     date: { type: Date, default: Date.now }
 });
 var TextModel = mongoose.model('Text', textSchema);
@@ -80,16 +81,20 @@ app.post('/api/texts', function (req, res) { return __awaiter(_this, void 0, voi
     });
 }); });
 app.get('/api/random-text', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var count, random, randomText, error_2;
+    var lang, count, random, randomText, error_2;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
                 _a.trys.push([0, 3, , 4]);
-                return [4 /*yield*/, TextModel.countDocuments()];
+                lang = req.query.lang || 'uk';
+                return [4 /*yield*/, TextModel.countDocuments({ lang: lang })];
             case 1:
                 count = _a.sent();
+                if (count === 0) {
+                    return [2 /*return*/, res.status(404).json({ message: "No text found for lang: ".concat(lang) })];
+                }
                 random = Math.floor(Math.random() * count);
-                return [4 /*yield*/, TextModel.findOne().skip(random)];
+                return [4 /*yield*/, TextModel.findOne({ lang: lang }).skip(random)];
             case 2:
                 randomText = _a.sent();
                 if (!randomText) {
@@ -232,15 +237,13 @@ app.get('/api/me', authMiddleware, function (req, res) { return __awaiter(_this,
     });
 }); });
 var nodemailer = require('nodemailer');
-// 👉 для відправки email (тестова SMTP-пошта)
 var transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-        user: 'nazarmn2008@gmail.com', // ❗️твій email
-        pass: 'hgwo vvsi tipt gldm ' // ❗️пароль застосунку (не твій email-пароль!)
+        user: 'nazarmn2008@gmail.com',
+        pass: 'hgwo vvsi tipt gldm '
     }
 });
-// 👉 magic-link endpoint
 app.post('/api/magic-link', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
     var email, user, token, link, error_6;
     return __generator(this, function (_a) {

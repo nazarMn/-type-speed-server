@@ -20,6 +20,7 @@ app.use(express.json());
 
 const textSchema = new mongoose.Schema({
     text: { type: String, required: true },
+    lang: { type: String, required: true },
     date: { type: Date, default: Date.now }
 });
 
@@ -39,9 +40,13 @@ app.post('/api/texts', async (req, res) => {
 
 app.get('/api/random-text', async (req, res) => {
     try {
-        const count = await TextModel.countDocuments();
+        const lang = req.query.lang || 'uk';
+        const count = await TextModel.countDocuments({ lang });
+        if (count === 0) {
+            return res.status(404).json({ message: `No text found for lang: ${lang}` });
+        }
         const random = Math.floor(Math.random() * count);
-        const randomText = await TextModel.findOne().skip(random);
+        const randomText = await TextModel.findOne({ lang }).skip(random);
         if (!randomText) {
             return res.status(404).json({ message: 'No text found' });
         }
