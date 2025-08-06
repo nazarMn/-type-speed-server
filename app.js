@@ -41,6 +41,7 @@ var cors = require('cors');
 var mongoose = require('mongoose');
 var bcrypt = require('bcryptjs');
 var jwt = require('jsonwebtoken');
+var crypto = require('crypto');
 mongoose.connect('mongodb+srv://root:9ZxY2VeU0Eqp6Hxl@cluster0.mjxa3iv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0', {
     useNewUrlParser: true,
     useUnifiedTopology: true
@@ -53,7 +54,7 @@ app.use(cors());
 app.use(express.json());
 var textSchema = new mongoose.Schema({
     text: { type: String, required: true },
-    lang: { type: String, required: true }, // Додали поле мови
+    lang: { type: String, required: true },
     date: { type: Date, default: Date.now }
 });
 var TextModel = mongoose.model('Text', textSchema);
