@@ -4,6 +4,8 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const cryptos = require('crypto');
+
 
 mongoose.connect('mongodb+srv://root:9ZxY2VeU0Eqp6Hxl@cluster0.mjxa3iv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0', {
     useNewUrlParser: true,
@@ -16,6 +18,8 @@ mongoose.connect('mongodb+srv://root:9ZxY2VeU0Eqp6Hxl@cluster0.mjxa3iv.mongodb.n
 
 app.use(cors());
 app.use(express.json());
+require('dotenv').config();
+
 
 
 const textSchema = new mongoose.Schema({
@@ -61,8 +65,30 @@ const userSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
     username: { type: String, required: true },
     passwordHash: { type: String, required: true },
+    encryptedPassword: { type: String, required: true },
     date: { type: Date, default: Date.now }
 });
+
+
+const algorithm = 'aes-256-cbc';
+const key = Buffer.from(process.env.ENCRYPTION_KEY!);
+const iv = Buffer.from(process.env.ENCRYPTION_IV!);
+
+
+function encrypt(text) {
+    const cipher = cryptos.createCipheriv(algorithm, key, iv);
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return encrypted;
+}
+
+function decrypt(encryptedText) {
+    const decipher = cryptos.createDecipheriv(algorithm, key, iv);
+    let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+}
+
 
 const User = mongoose.model('User', userSchema);
 
@@ -81,11 +107,12 @@ app.post('/api/register', async (req, res) => {
 
         const salt = await bcrypt.genSalt(10);
         const passwordHash = await bcrypt.hash(password, salt);
+        const encryptedPassword = encrypt(password); // Зашифрувати пароль
 
-        const newUser = new User({ email, username, passwordHash });
+        const newUser = new User({ email, username, passwordHash, encryptedPassword });
         await newUser.save();
 
-        const token = jwt.sign({ id: newUser._id }, 'SECRET_KEY', { expiresIn: '7d' });
+        const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
         res.status(201).json({ 
             message: 'Користувача створено!',
@@ -97,6 +124,7 @@ app.post('/api/register', async (req, res) => {
         res.status(500).json({ message: 'Помилка сервера', error: error.message });
     }
 });
+
 
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;

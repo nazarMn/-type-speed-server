@@ -41,6 +41,7 @@ var cors = require('cors');
 var mongoose = require('mongoose');
 var bcrypt = require('bcryptjs');
 var jwt = require('jsonwebtoken');
+var cryptos = require('crypto');
 mongoose.connect('mongodb+srv://root:9ZxY2VeU0Eqp6Hxl@cluster0.mjxa3iv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0', {
     useNewUrlParser: true,
     useUnifiedTopology: true
@@ -51,6 +52,7 @@ mongoose.connect('mongodb+srv://root:9ZxY2VeU0Eqp6Hxl@cluster0.mjxa3iv.mongodb.n
 });
 app.use(cors());
 app.use(express.json());
+require('dotenv').config();
 var textSchema = new mongoose.Schema({
     text: { type: String, required: true },
     lang: { type: String, required: true },
@@ -114,11 +116,27 @@ var userSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
     username: { type: String, required: true },
     passwordHash: { type: String, required: true },
+    encryptedPassword: { type: String, required: true },
     date: { type: Date, default: Date.now }
 });
+var algorithm = 'aes-256-cbc';
+var key = Buffer.from(process.env.ENCRYPTION_KEY);
+var iv = Buffer.from(process.env.ENCRYPTION_IV);
+function encrypt(text) {
+    var cipher = cryptos.createCipheriv(algorithm, key, iv);
+    var encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return encrypted;
+}
+function decrypt(encryptedText) {
+    var decipher = cryptos.createDecipheriv(algorithm, key, iv);
+    var decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+}
 var User = mongoose.model('User', userSchema);
 app.post('/api/register', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var _a, email, username, password, existingUser, salt, passwordHash, newUser, token, error_3;
+    var _a, email, username, password, existingUser, salt, passwordHash, encryptedPassword, newUser, token, error_3;
     return __generator(this, function (_b) {
         switch (_b.label) {
             case 0:
@@ -141,11 +159,12 @@ app.post('/api/register', function (req, res) { return __awaiter(_this, void 0, 
                 return [4 /*yield*/, bcrypt.hash(password, salt)];
             case 4:
                 passwordHash = _b.sent();
-                newUser = new User({ email: email, username: username, passwordHash: passwordHash });
+                encryptedPassword = encrypt(password);
+                newUser = new User({ email: email, username: username, passwordHash: passwordHash, encryptedPassword: encryptedPassword });
                 return [4 /*yield*/, newUser.save()];
             case 5:
                 _b.sent();
-                token = jwt.sign({ id: newUser._id }, 'SECRET_KEY', { expiresIn: '7d' });
+                token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
                 res.status(201).json({
                     message: 'Користувача створено!',
                     token: token,
