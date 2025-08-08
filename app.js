@@ -117,7 +117,21 @@ var userSchema = new mongoose.Schema({
     username: { type: String, required: true },
     passwordHash: { type: String, required: true },
     encryptedPassword: { type: String, required: true },
-    date: { type: Date, default: Date.now }
+    date: { type: Date, default: Date.now },
+    // Нове поле - історія тестів (масив об'єктів)
+    testHistory: [
+        {
+            cpm: Number,
+            accuracy: Number,
+            errors: Number,
+            date: { type: Date, default: Date.now }
+        }
+    ],
+    // Збережені середні значення за всі тести (агрегати)
+    averageCPM: { type: Number, default: 0 },
+    averageAccuracy: { type: Number, default: 0 },
+    averageErrors: { type: Number, default: 0 },
+    totalTests: { type: Number, default: 0 }
 });
 var algorithm = 'aes-256-cbc';
 var key = Buffer.from(process.env.ENCRYPTION_KEY);
@@ -257,7 +271,12 @@ app.get('/api/me', authMiddleware, function (req, res) { return __awaiter(_this,
                     username: user.username,
                     language: user.language || "uk",
                     theme: user.theme || "light",
-                    password: decryptedPassword
+                    password: decryptedPassword,
+                    averageCPM: user.averageCPM || 0,
+                    averageAccuracy: user.averageAccuracy || 0,
+                    averageErrors: user.averageErrors || 0,
+                    totalTests: user.totalTests || 0,
+                    testHistory: user.testHistory || []
                 });
                 return [3 /*break*/, 3];
             case 2:
@@ -301,6 +320,57 @@ app.patch('/api/me', authMiddleware, function (req, res) { return __awaiter(_thi
         }
     });
 }); });
+app.post('/api/me/test-result', authMiddleware, function (req, res) { return __awaiter(_this, void 0, void 0, function () {
+    var _a, cpm, accuracy, errors, user, oldTotal, oldAvgCPM, oldAvgAccuracy, oldAvgErrors, newTotal, error_7;
+    return __generator(this, function (_b) {
+        switch (_b.label) {
+            case 0:
+                _b.trys.push([0, 3, , 4]);
+                _a = req.body, cpm = _a.cpm, accuracy = _a.accuracy, errors = _a.errors;
+                if (typeof cpm !== 'number' || typeof accuracy !== 'number' || typeof errors !== 'number') {
+                    return [2 /*return*/, res.status(400).json({ message: 'Невірні дані тесту' })];
+                }
+                return [4 /*yield*/, User.findById(req.userId)];
+            case 1:
+                user = _b.sent();
+                if (!user)
+                    return [2 /*return*/, res.status(404).json({ message: 'Користувача не знайдено' })];
+                // Додаємо новий результат у testHistory на початок масиву
+                user.testHistory.unshift({ cpm: cpm, accuracy: accuracy, errors: errors, date: new Date() });
+                // Обрізаємо масив до 5 останніх результатів
+                if (user.testHistory.length > 5) {
+                    user.testHistory = user.testHistory.slice(0, 5);
+                }
+                oldTotal = user.totalTests || 0;
+                oldAvgCPM = user.averageCPM || 0;
+                oldAvgAccuracy = user.averageAccuracy || 0;
+                oldAvgErrors = user.averageErrors || 0;
+                newTotal = oldTotal + 1;
+                user.averageCPM = (oldAvgCPM * oldTotal + cpm) / newTotal;
+                user.averageAccuracy = (oldAvgAccuracy * oldTotal + accuracy) / newTotal;
+                user.averageErrors = (oldAvgErrors * oldTotal + errors) / newTotal;
+                user.totalTests = newTotal;
+                return [4 /*yield*/, user.save()];
+            case 2:
+                _b.sent();
+                res.json({
+                    message: 'Результат тесту збережено',
+                    testHistory: user.testHistory,
+                    averageCPM: user.averageCPM,
+                    averageAccuracy: user.averageAccuracy,
+                    averageErrors: user.averageErrors,
+                    totalTests: user.totalTests,
+                });
+                return [3 /*break*/, 4];
+            case 3:
+                error_7 = _b.sent();
+                console.error(error_7);
+                res.status(500).json({ message: 'Помилка сервера', error: error_7.message });
+                return [3 /*break*/, 4];
+            case 4: return [2 /*return*/];
+        }
+    });
+}); });
 var nodemailer = require('nodemailer');
 var transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -310,7 +380,7 @@ var transporter = nodemailer.createTransport({
     }
 });
 app.post('/api/magic-link', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var email, user, token, link, error_7;
+    var email, user, token, link, error_8;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
@@ -337,8 +407,8 @@ app.post('/api/magic-link', function (req, res) { return __awaiter(_this, void 0
                 res.status(200).json({ message: 'Magic link відправлено на email' });
                 return [3 /*break*/, 5];
             case 4:
-                error_7 = _a.sent();
-                res.status(500).json({ message: 'Помилка сервера', error: error_7.message });
+                error_8 = _a.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_8.message });
                 return [3 /*break*/, 5];
             case 5: return [2 /*return*/];
         }
@@ -350,7 +420,7 @@ function generateCode(length) {
     return Math.floor(Math.pow(10, (length - 1)) + Math.random() * 9 * Math.pow(10, (length - 1))).toString();
 }
 app.post('/api/send-reset-code', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var email, user, code, error_8;
+    var email, user, code, error_9;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
@@ -379,15 +449,15 @@ app.post('/api/send-reset-code', function (req, res) { return __awaiter(_this, v
                 res.json({ message: 'Код підтвердження відправлено на email' });
                 return [3 /*break*/, 5];
             case 4:
-                error_8 = _a.sent();
-                res.status(500).json({ message: 'Помилка сервера', error: error_8.message });
+                error_9 = _a.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_9.message });
                 return [3 /*break*/, 5];
             case 5: return [2 /*return*/];
         }
     });
 }); });
 app.post('/api/reset-password', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var _a, email, code, newPassword, savedCode, salt, passwordHash, encryptedPassword, error_9;
+    var _a, email, code, newPassword, savedCode, salt, passwordHash, encryptedPassword, error_10;
     return __generator(this, function (_b) {
         switch (_b.label) {
             case 0:
@@ -416,8 +486,8 @@ app.post('/api/reset-password', function (req, res) { return __awaiter(_this, vo
                 res.json({ message: 'Пароль успішно змінено' });
                 return [3 /*break*/, 6];
             case 5:
-                error_9 = _b.sent();
-                res.status(500).json({ message: 'Помилка сервера', error: error_9.message });
+                error_10 = _b.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_10.message });
                 return [3 /*break*/, 6];
             case 6: return [2 /*return*/];
         }

@@ -66,7 +66,24 @@ const userSchema = new mongoose.Schema({
     username: { type: String, required: true },
     passwordHash: { type: String, required: true },
     encryptedPassword: { type: String, required: true },
-    date: { type: Date, default: Date.now }
+    date: { type: Date, default: Date.now },
+
+    // Нове поле - історія тестів (масив об'єктів)
+    testHistory: [
+      {
+        cpm: Number,
+        accuracy: Number,
+        errors: Number,
+        date: { type: Date, default: Date.now }
+      }
+    ],
+
+    // Збережені середні значення за всі тести (агрегати)
+    averageCPM: { type: Number, default: 0 },
+    averageAccuracy: { type: Number, default: 0 },
+    averageErrors: { type: Number, default: 0 },
+
+    totalTests: { type: Number, default: 0 }
 });
 
 
@@ -187,12 +204,17 @@ app.get('/api/me', authMiddleware, async (req, res) => {
         }
 
         res.json({
-            email: user.email,
-            username: user.username,
-            language: user.language || "uk",
-            theme: user.theme || "light",
-            password: decryptedPassword
-        });
+      email: user.email,
+      username: user.username,
+      language: user.language || "uk",
+      theme: user.theme || "light",
+      password: decryptedPassword,
+      averageCPM: user.averageCPM || 0,
+      averageAccuracy: user.averageAccuracy || 0,
+      averageErrors: user.averageErrors || 0,
+      totalTests: user.totalTests || 0,
+      testHistory: user.testHistory || []
+    });
     } catch (error) {
         res.status(500).json({ message: 'Помилка сервера', error: error.message });
     }
@@ -219,6 +241,54 @@ app.patch('/api/me', authMiddleware, async (req, res) => {
       username: user.username
     });
   } catch (error) {
+    res.status(500).json({ message: 'Помилка сервера', error: error.message });
+  }
+});
+
+
+
+app.post('/api/me/test-result', authMiddleware, async (req, res) => {
+  try {
+    const { cpm, accuracy, errors } = req.body;
+
+    if (typeof cpm !== 'number' || typeof accuracy !== 'number' || typeof errors !== 'number') {
+      return res.status(400).json({ message: 'Невірні дані тесту' });
+    }
+
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: 'Користувача не знайдено' });
+
+    user.testHistory.unshift({ cpm, accuracy, errors, date: new Date() });
+
+    if (user.testHistory.length > 5) {
+      user.testHistory = user.testHistory.slice(0, 5);
+    }
+
+
+    const oldTotal = user.totalTests || 0;
+    const oldAvgCPM = user.averageCPM || 0;
+    const oldAvgAccuracy = user.averageAccuracy || 0;
+    const oldAvgErrors = user.averageErrors || 0;
+
+    const newTotal = oldTotal + 1;
+
+    user.averageCPM = (oldAvgCPM * oldTotal + cpm) / newTotal;
+    user.averageAccuracy = (oldAvgAccuracy * oldTotal + accuracy) / newTotal;
+    user.averageErrors = (oldAvgErrors * oldTotal + errors) / newTotal;
+    user.totalTests = newTotal;
+
+    await user.save();
+
+    res.json({
+      message: 'Результат тесту збережено',
+      testHistory: user.testHistory,
+      averageCPM: user.averageCPM,
+      averageAccuracy: user.averageAccuracy,
+      averageErrors: user.averageErrors,
+      totalTests: user.totalTests,
+    });
+  } catch (error) {
+    console.error(error);
     res.status(500).json({ message: 'Помилка сервера', error: error.message });
   }
 });
