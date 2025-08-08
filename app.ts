@@ -198,6 +198,31 @@ app.get('/api/me', authMiddleware, async (req, res) => {
     }
 });
 
+app.patch('/api/me', authMiddleware, async (req, res) => {
+  try {
+    const { username } = req.body;
+
+    if (!username) {
+      return res.status(400).json({ message: 'Імʼя користувача обовʼязкове' });
+    }
+
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'Користувача не знайдено' });
+    }
+
+    user.username = username;
+    await user.save();
+
+    res.json({
+      message: 'Імʼя успішно оновлено',
+      username: user.username
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Помилка сервера', error: error.message });
+  }
+});
+
 
 
 const nodemailer = require('nodemailer');

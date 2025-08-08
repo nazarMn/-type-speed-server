@@ -268,6 +268,39 @@ app.get('/api/me', authMiddleware, function (req, res) { return __awaiter(_this,
         }
     });
 }); });
+app.patch('/api/me', authMiddleware, function (req, res) { return __awaiter(_this, void 0, void 0, function () {
+    var username, user, error_6;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0:
+                _a.trys.push([0, 3, , 4]);
+                username = req.body.username;
+                if (!username) {
+                    return [2 /*return*/, res.status(400).json({ message: 'Імʼя користувача обовʼязкове' })];
+                }
+                return [4 /*yield*/, User.findById(req.userId)];
+            case 1:
+                user = _a.sent();
+                if (!user) {
+                    return [2 /*return*/, res.status(404).json({ message: 'Користувача не знайдено' })];
+                }
+                user.username = username;
+                return [4 /*yield*/, user.save()];
+            case 2:
+                _a.sent();
+                res.json({
+                    message: 'Імʼя успішно оновлено',
+                    username: user.username
+                });
+                return [3 /*break*/, 4];
+            case 3:
+                error_6 = _a.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_6.message });
+                return [3 /*break*/, 4];
+            case 4: return [2 /*return*/];
+        }
+    });
+}); });
 var nodemailer = require('nodemailer');
 var transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -277,7 +310,7 @@ var transporter = nodemailer.createTransport({
     }
 });
 app.post('/api/magic-link', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var email, user, token, link, error_6;
+    var email, user, token, link, error_7;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
@@ -304,21 +337,20 @@ app.post('/api/magic-link', function (req, res) { return __awaiter(_this, void 0
                 res.status(200).json({ message: 'Magic link відправлено на email' });
                 return [3 /*break*/, 5];
             case 4:
-                error_6 = _a.sent();
-                res.status(500).json({ message: 'Помилка сервера', error: error_6.message });
+                error_7 = _a.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_7.message });
                 return [3 /*break*/, 5];
             case 5: return [2 /*return*/];
         }
     });
 }); });
-var resetCodes = new Map(); // email -> code, у реалі краще БД або Redis
-// Функція для генерації коду
+var resetCodes = new Map();
 function generateCode(length) {
     if (length === void 0) { length = 6; }
     return Math.floor(Math.pow(10, (length - 1)) + Math.random() * 9 * Math.pow(10, (length - 1))).toString();
 }
 app.post('/api/send-reset-code', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var email, user, code, error_7;
+    var email, user, code, error_8;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
@@ -343,20 +375,19 @@ app.post('/api/send-reset-code', function (req, res) { return __awaiter(_this, v
                     })];
             case 3:
                 _a.sent();
-                // Через 15 хв видаляємо код
                 setTimeout(function () { return resetCodes.delete(email); }, 15 * 60 * 1000);
                 res.json({ message: 'Код підтвердження відправлено на email' });
                 return [3 /*break*/, 5];
             case 4:
-                error_7 = _a.sent();
-                res.status(500).json({ message: 'Помилка сервера', error: error_7.message });
+                error_8 = _a.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_8.message });
                 return [3 /*break*/, 5];
             case 5: return [2 /*return*/];
         }
     });
 }); });
 app.post('/api/reset-password', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var _a, email, code, newPassword, savedCode, salt, passwordHash, encryptedPassword, error_8;
+    var _a, email, code, newPassword, savedCode, salt, passwordHash, encryptedPassword, error_9;
     return __generator(this, function (_b) {
         switch (_b.label) {
             case 0:
@@ -381,12 +412,12 @@ app.post('/api/reset-password', function (req, res) { return __awaiter(_this, vo
                 return [4 /*yield*/, User.updateOne({ email: email }, { $set: { passwordHash: passwordHash, encryptedPassword: encryptedPassword } })];
             case 4:
                 _b.sent();
-                resetCodes.delete(email); // видаляємо код після успішної зміни
+                resetCodes.delete(email);
                 res.json({ message: 'Пароль успішно змінено' });
                 return [3 /*break*/, 6];
             case 5:
-                error_8 = _b.sent();
-                res.status(500).json({ message: 'Помилка сервера', error: error_8.message });
+                error_9 = _b.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_9.message });
                 return [3 /*break*/, 6];
             case 6: return [2 /*return*/];
         }
