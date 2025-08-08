@@ -203,7 +203,7 @@ app.post('/api/login', function (req, res) { return __awaiter(_this, void 0, voi
                 if (!isPasswordValid) {
                     return [2 /*return*/, res.status(400).json({ message: 'Невірний пароль' })];
                 }
-                token = jwt.sign({ id: user._id }, 'SECRET_KEY', { expiresIn: '7d' });
+                token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
                 res.status(200).json({
                     message: 'Успішний вхід!',
                     token: token,
@@ -225,7 +225,7 @@ var authMiddleware = function (req, res, next) {
         return res.status(401).json({ message: 'Немає токена' });
     }
     try {
-        var decoded = jwt.verify(token, 'SECRET_KEY');
+        var decoded = jwt.verify(token, process.env.JWT_SECRET);
         req.userId = decoded.id;
         next();
     }
@@ -278,7 +278,7 @@ app.post('/api/magic-link', function (req, res) { return __awaiter(_this, void 0
                 if (!user) {
                     return [2 /*return*/, res.status(404).json({ message: 'Користувача не знайдено' })];
                 }
-                token = jwt.sign({ id: user._id }, 'SECRET_KEY', { expiresIn: '15m' });
+                token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '15m' });
                 link = "http://localhost:5173/magic-login?token=".concat(token);
                 return [4 /*yield*/, transporter.sendMail({
                         from: 'TypeSpeed <yourEmail@gmail.com>',

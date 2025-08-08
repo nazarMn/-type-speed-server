@@ -144,7 +144,7 @@ app.post('/api/login', async (req, res) => {
             return res.status(400).json({ message: 'Невірний пароль' }); 
         }
 
-        const token = jwt.sign({ id: user._id }, 'SECRET_KEY', { expiresIn: '7d' });
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
         res.status(200).json({ 
             message: 'Успішний вхід!',
@@ -164,7 +164,7 @@ const authMiddleware = (req, res, next) => {
     }
 
     try {
-        const decoded = jwt.verify(token, 'SECRET_KEY');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
         req.userId = decoded.id;
         next();
     } catch (error) {
@@ -204,7 +204,7 @@ app.post('/api/magic-link', async (req, res) => {
             return res.status(404).json({ message: 'Користувача не знайдено' });
         }
 
-        const token = jwt.sign({ id: user._id }, 'SECRET_KEY', { expiresIn: '15m' });
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '15m' });
 
         const link = `http://localhost:5173/magic-login?token=${token}`;
 
