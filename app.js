@@ -257,7 +257,7 @@ app.get('/api/me', authMiddleware, function (req, res) { return __awaiter(_this,
                     username: user.username,
                     language: user.language || "uk",
                     theme: user.theme || "light",
-                    password: decryptedPassword // відправляємо реальний пароль
+                    password: decryptedPassword
                 });
                 return [3 /*break*/, 3];
             case 2:
@@ -308,6 +308,87 @@ app.post('/api/magic-link', function (req, res) { return __awaiter(_this, void 0
                 res.status(500).json({ message: 'Помилка сервера', error: error_6.message });
                 return [3 /*break*/, 5];
             case 5: return [2 /*return*/];
+        }
+    });
+}); });
+var resetCodes = new Map(); // email -> code, у реалі краще БД або Redis
+// Функція для генерації коду
+function generateCode(length) {
+    if (length === void 0) { length = 6; }
+    return Math.floor(Math.pow(10, (length - 1)) + Math.random() * 9 * Math.pow(10, (length - 1))).toString();
+}
+app.post('/api/send-reset-code', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
+    var email, user, code, error_7;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0:
+                email = req.body.email;
+                if (!email)
+                    return [2 /*return*/, res.status(400).json({ message: 'Email потрібен' })];
+                _a.label = 1;
+            case 1:
+                _a.trys.push([1, 4, , 5]);
+                return [4 /*yield*/, User.findOne({ email: email })];
+            case 2:
+                user = _a.sent();
+                if (!user)
+                    return [2 /*return*/, res.status(404).json({ message: 'Користувача не знайдено' })];
+                code = generateCode(6);
+                resetCodes.set(email, code);
+                return [4 /*yield*/, transporter.sendMail({
+                        from: 'TypeSpeed <yourEmail@gmail.com>',
+                        to: email,
+                        subject: 'Код підтвердження для зміни пароля',
+                        html: "<p>\u0412\u0430\u0448 \u043A\u043E\u0434 \u043F\u0456\u0434\u0442\u0432\u0435\u0440\u0434\u0436\u0435\u043D\u043D\u044F: <b>".concat(code, "</b></p><small>\u041A\u043E\u0434 \u0434\u0456\u0439\u0441\u043D\u0438\u0439 15 \u0445\u0432\u0438\u043B\u0438\u043D.</small>")
+                    })];
+            case 3:
+                _a.sent();
+                // Через 15 хв видаляємо код
+                setTimeout(function () { return resetCodes.delete(email); }, 15 * 60 * 1000);
+                res.json({ message: 'Код підтвердження відправлено на email' });
+                return [3 /*break*/, 5];
+            case 4:
+                error_7 = _a.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_7.message });
+                return [3 /*break*/, 5];
+            case 5: return [2 /*return*/];
+        }
+    });
+}); });
+app.post('/api/reset-password', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
+    var _a, email, code, newPassword, savedCode, salt, passwordHash, encryptedPassword, error_8;
+    return __generator(this, function (_b) {
+        switch (_b.label) {
+            case 0:
+                _a = req.body, email = _a.email, code = _a.code, newPassword = _a.newPassword;
+                if (!email || !code || !newPassword) {
+                    return [2 /*return*/, res.status(400).json({ message: 'Відсутні необхідні дані' })];
+                }
+                _b.label = 1;
+            case 1:
+                _b.trys.push([1, 5, , 6]);
+                savedCode = resetCodes.get(email);
+                if (savedCode !== code) {
+                    return [2 /*return*/, res.status(400).json({ message: 'Невірний код підтвердження' })];
+                }
+                return [4 /*yield*/, bcrypt.genSalt(10)];
+            case 2:
+                salt = _b.sent();
+                return [4 /*yield*/, bcrypt.hash(newPassword, salt)];
+            case 3:
+                passwordHash = _b.sent();
+                encryptedPassword = encrypt(newPassword);
+                return [4 /*yield*/, User.updateOne({ email: email }, { $set: { passwordHash: passwordHash, encryptedPassword: encryptedPassword } })];
+            case 4:
+                _b.sent();
+                resetCodes.delete(email); // видаляємо код після успішної зміни
+                res.json({ message: 'Пароль успішно змінено' });
+                return [3 /*break*/, 6];
+            case 5:
+                error_8 = _b.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_8.message });
+                return [3 /*break*/, 6];
+            case 6: return [2 /*return*/];
         }
     });
 }); });

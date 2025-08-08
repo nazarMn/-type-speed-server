@@ -239,6 +239,70 @@ app.post('/api/magic-link', async (req, res) => {
 
 
 
+const resetCodes = new Map(); 
+
+function generateCode(length = 6) {
+  return Math.floor(10 ** (length - 1) + Math.random() * 9 * 10 ** (length - 1)).toString();
+}
+
+app.post('/api/send-reset-code', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ message: 'Email потрібен' });
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: 'Користувача не знайдено' });
+
+    const code = generateCode(6);
+    resetCodes.set(email, code);
+
+    await transporter.sendMail({
+      from: 'TypeSpeed <yourEmail@gmail.com>',
+      to: email,
+      subject: 'Код підтвердження для зміни пароля',
+      html: `<p>Ваш код підтвердження: <b>${code}</b></p><small>Код дійсний 15 хвилин.</small>`
+    });
+
+    setTimeout(() => resetCodes.delete(email), 15 * 60 * 1000);
+
+    res.json({ message: 'Код підтвердження відправлено на email' });
+  } catch (error) {
+    res.status(500).json({ message: 'Помилка сервера', error: error.message });
+  }
+});
+
+app.post('/api/reset-password', async (req, res) => {
+  const { email, code, newPassword } = req.body;
+  if (!email || !code || !newPassword) {
+    return res.status(400).json({ message: 'Відсутні необхідні дані' });
+  }
+
+  try {
+    const savedCode = resetCodes.get(email);
+    if (savedCode !== code) {
+      return res.status(400).json({ message: 'Невірний код підтвердження' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(newPassword, salt);
+    const encryptedPassword = encrypt(newPassword);
+
+    await User.updateOne(
+      { email },
+      { $set: { passwordHash, encryptedPassword } }
+    );
+
+    resetCodes.delete(email);
+
+    res.json({ message: 'Пароль успішно змінено' });
+  } catch (error) {
+    res.status(500).json({ message: 'Помилка сервера', error: error.message });
+  }
+});
+
+
+
+
 app.get('/', (req, res) => {
     res.status(200).json({ message: 'Hello World!' });
 });
