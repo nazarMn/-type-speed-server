@@ -234,7 +234,7 @@ var authMiddleware = function (req, res, next) {
     }
 };
 app.get('/api/me', authMiddleware, function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var user, error_5;
+    var user, decryptedPassword, error_5;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
@@ -245,7 +245,20 @@ app.get('/api/me', authMiddleware, function (req, res) { return __awaiter(_this,
                 if (!user) {
                     return [2 /*return*/, res.status(404).json({ message: 'Користувача не знайдено' })];
                 }
-                res.json(user);
+                decryptedPassword = "";
+                try {
+                    decryptedPassword = decrypt(user.encryptedPassword);
+                }
+                catch (e) {
+                    console.error("Помилка розшифрування пароля:", e.message);
+                }
+                res.json({
+                    email: user.email,
+                    username: user.username,
+                    language: user.language || "uk",
+                    theme: user.theme || "light",
+                    password: decryptedPassword // відправляємо реальний пароль
+                });
                 return [3 /*break*/, 3];
             case 2:
                 error_5 = _a.sent();

@@ -178,11 +178,26 @@ app.get('/api/me', authMiddleware, async (req, res) => {
         if (!user) {
             return res.status(404).json({ message: 'Користувача не знайдено' });
         }
-        res.json(user);
+
+        let decryptedPassword = "";
+        try {
+            decryptedPassword = decrypt(user.encryptedPassword);
+        } catch (e) {
+            console.error("Помилка розшифрування пароля:", e.message);
+        }
+
+        res.json({
+            email: user.email,
+            username: user.username,
+            language: user.language || "uk",
+            theme: user.theme || "light",
+            password: decryptedPassword
+        });
     } catch (error) {
         res.status(500).json({ message: 'Помилка сервера', error: error.message });
     }
 });
+
 
 
 const nodemailer = require('nodemailer');
