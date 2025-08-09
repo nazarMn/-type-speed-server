@@ -247,6 +247,19 @@ app.patch('/api/me', authMiddleware, async (req, res) => {
 
 
 
+const dailyLeaderSchema = new mongoose.Schema({
+  username: { type: String, required: true },
+  cpm: { type: Number, required: true },
+  accuracy: { type: Number, required: true },
+  errors: { type: Number, required: true },
+  date: { type: Date, default: Date.now }
+});
+
+const DailyLeader = mongoose.model("DailyLeader", dailyLeaderSchema);
+
+
+
+
 app.post('/api/me/test-result', authMiddleware, async (req, res) => {
   try {
     const { cpm, accuracy, errors } = req.body;
@@ -259,17 +272,14 @@ app.post('/api/me/test-result', authMiddleware, async (req, res) => {
     if (!user) return res.status(404).json({ message: 'Користувача не знайдено' });
 
     user.testHistory.unshift({ cpm, accuracy, errors, date: new Date() });
-
     if (user.testHistory.length > 5) {
       user.testHistory = user.testHistory.slice(0, 5);
     }
-
 
     const oldTotal = user.totalTests || 0;
     const oldAvgCPM = user.averageCPM || 0;
     const oldAvgAccuracy = user.averageAccuracy || 0;
     const oldAvgErrors = user.averageErrors || 0;
-
     const newTotal = oldTotal + 1;
 
     user.averageCPM = (oldAvgCPM * oldTotal + cpm) / newTotal;
@@ -279,19 +289,55 @@ app.post('/api/me/test-result', authMiddleware, async (req, res) => {
 
     await user.save();
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const newLeader = new DailyLeader({
+      username: user.username,
+      cpm,
+      accuracy,
+      errors,
+      date: new Date()
+    });
+    await newLeader.save();
+
+    const leadersToday = await DailyLeader.find({
+      date: { $gte: today }
+    }).sort({ cpm: -1, accuracy: -1 });
+
+    if (leadersToday.length > 5) {
+      const toDelete = leadersToday.slice(5); 
+      const deleteIds = toDelete.map(l => l._id);
+      await DailyLeader.deleteMany({ _id: { $in: deleteIds } });
+    }
+
     res.json({
       message: 'Результат тесту збережено',
       testHistory: user.testHistory,
       averageCPM: user.averageCPM,
       averageAccuracy: user.averageAccuracy,
       averageErrors: user.averageErrors,
-      totalTests: user.totalTests,
+      totalTests: user.totalTests
     });
+
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Помилка сервера', error: error.message });
   }
 });
+
+
+app.get("/api/leaders/today", async (req, res) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const leaders = await DailyLeader.find({
+    date: { $gte: today }
+  }).sort({ cpm: -1, accuracy: -1 }).limit(5);
+
+  res.json(leaders);
+});
+
 
 
 

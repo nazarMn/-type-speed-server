@@ -320,12 +320,20 @@ app.patch('/api/me', authMiddleware, function (req, res) { return __awaiter(_thi
         }
     });
 }); });
+var dailyLeaderSchema = new mongoose.Schema({
+    username: { type: String, required: true },
+    cpm: { type: Number, required: true },
+    accuracy: { type: Number, required: true },
+    errors: { type: Number, required: true },
+    date: { type: Date, default: Date.now }
+});
+var DailyLeader = mongoose.model("DailyLeader", dailyLeaderSchema);
 app.post('/api/me/test-result', authMiddleware, function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var _a, cpm, accuracy, errors, user, oldTotal, oldAvgCPM, oldAvgAccuracy, oldAvgErrors, newTotal, error_7;
+    var _a, cpm, accuracy, errors, user, oldTotal, oldAvgCPM, oldAvgAccuracy, oldAvgErrors, newTotal, today, newLeader, leadersToday, toDelete, deleteIds, error_7;
     return __generator(this, function (_b) {
         switch (_b.label) {
             case 0:
-                _b.trys.push([0, 3, , 4]);
+                _b.trys.push([0, 7, , 8]);
                 _a = req.body, cpm = _a.cpm, accuracy = _a.accuracy, errors = _a.errors;
                 if (typeof cpm !== 'number' || typeof accuracy !== 'number' || typeof errors !== 'number') {
                     return [2 /*return*/, res.status(400).json({ message: 'Невірні дані тесту' })];
@@ -335,9 +343,8 @@ app.post('/api/me/test-result', authMiddleware, function (req, res) { return __a
                 user = _b.sent();
                 if (!user)
                     return [2 /*return*/, res.status(404).json({ message: 'Користувача не знайдено' })];
-                // Додаємо новий результат у testHistory на початок масиву
+                // 1️⃣ Збереження в історію користувача
                 user.testHistory.unshift({ cpm: cpm, accuracy: accuracy, errors: errors, date: new Date() });
-                // Обрізаємо масив до 5 останніх результатів
                 if (user.testHistory.length > 5) {
                     user.testHistory = user.testHistory.slice(0, 5);
                 }
@@ -353,21 +360,63 @@ app.post('/api/me/test-result', authMiddleware, function (req, res) { return __a
                 return [4 /*yield*/, user.save()];
             case 2:
                 _b.sent();
+                today = new Date();
+                today.setHours(0, 0, 0, 0);
+                newLeader = new DailyLeader({
+                    username: user.username,
+                    cpm: cpm,
+                    accuracy: accuracy,
+                    errors: errors,
+                    date: new Date()
+                });
+                return [4 /*yield*/, newLeader.save()];
+            case 3:
+                _b.sent();
+                return [4 /*yield*/, DailyLeader.find({
+                        date: { $gte: today }
+                    }).sort({ cpm: -1, accuracy: -1 })];
+            case 4:
+                leadersToday = _b.sent();
+                if (!(leadersToday.length > 5)) return [3 /*break*/, 6];
+                toDelete = leadersToday.slice(5);
+                deleteIds = toDelete.map(function (l) { return l._id; });
+                return [4 /*yield*/, DailyLeader.deleteMany({ _id: { $in: deleteIds } })];
+            case 5:
+                _b.sent();
+                _b.label = 6;
+            case 6:
                 res.json({
                     message: 'Результат тесту збережено',
                     testHistory: user.testHistory,
                     averageCPM: user.averageCPM,
                     averageAccuracy: user.averageAccuracy,
                     averageErrors: user.averageErrors,
-                    totalTests: user.totalTests,
+                    totalTests: user.totalTests
                 });
-                return [3 /*break*/, 4];
-            case 3:
+                return [3 /*break*/, 8];
+            case 7:
                 error_7 = _b.sent();
                 console.error(error_7);
                 res.status(500).json({ message: 'Помилка сервера', error: error_7.message });
-                return [3 /*break*/, 4];
-            case 4: return [2 /*return*/];
+                return [3 /*break*/, 8];
+            case 8: return [2 /*return*/];
+        }
+    });
+}); });
+app.get("/api/leaders/today", function (req, res) { return __awaiter(_this, void 0, void 0, function () {
+    var today, leaders;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0:
+                today = new Date();
+                today.setHours(0, 0, 0, 0);
+                return [4 /*yield*/, DailyLeader.find({
+                        date: { $gte: today }
+                    }).sort({ cpm: -1, accuracy: -1 }).limit(5)];
+            case 1:
+                leaders = _a.sent();
+                res.json(leaders);
+                return [2 /*return*/];
         }
     });
 }); });
