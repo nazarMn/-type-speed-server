@@ -68,7 +68,8 @@ const userSchema = new mongoose.Schema({
     encryptedPassword: { type: String, required: true },
     date: { type: Date, default: Date.now },
 
-    // Нове поле - історія тестів (масив об'єктів)
+     role: { type: String, enum: ['user', 'admin'], default: 'user' },
+
     testHistory: [
       {
         cpm: Number,
@@ -78,7 +79,6 @@ const userSchema = new mongoose.Schema({
       }
     ],
 
-    // Збережені середні значення за всі тести (агрегати)
     averageCPM: { type: Number, default: 0 },
     averageAccuracy: { type: Number, default: 0 },
     averageErrors: { type: Number, default: 0 },
@@ -124,7 +124,7 @@ app.post('/api/register', async (req, res) => {
 
         const salt = await bcrypt.genSalt(10);
         const passwordHash = await bcrypt.hash(password, salt);
-        const encryptedPassword = encrypt(password); // Зашифрувати пароль
+        const encryptedPassword = encrypt(password); 
 
         const newUser = new User({ email, username, passwordHash, encryptedPassword });
         await newUser.save();
@@ -143,7 +143,7 @@ app.post('/api/register', async (req, res) => {
 });
 
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/admin/login', async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -152,27 +152,28 @@ app.post('/api/login', async (req, res) => {
 
     try {
         const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(400).json({ message: 'Користувача не знайдено' });
+        if (!user) return res.status(400).json({ message: 'Користувача не знайдено' });
+
+        if (user.role !== 'admin') {
+            return res.status(403).json({ message: 'Ви не є адміністратором' });
         }
 
         const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-        if (!isPasswordValid) {
-            return res.status(400).json({ message: 'Невірний пароль' }); 
-        }
+        if (!isPasswordValid) return res.status(400).json({ message: 'Невірний пароль' });
 
-        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+        const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-        res.status(200).json({ 
-            message: 'Успішний вхід!',
+        res.status(200).json({
+            message: 'Успішний вхід в адмін-панель!',
             token,
-            user: { id: user._id, email: user.email, username: user.username }
+            user: { id: user._id, email: user.email, username: user.username, role: user.role }
         });
 
     } catch (error) {
         res.status(500).json({ message: 'Помилка сервера', error: error.message });
     }
 });
+
 
 const authMiddleware = (req, res, next) => {
     const token = req.headers.authorization?.split(' ')[1];
@@ -189,21 +190,38 @@ const authMiddleware = (req, res, next) => {
     }
 };
 
-app.get('/api/me', authMiddleware, async (req, res) => {
+const adminMiddleware = async (req, res, next) => {
     try {
-        const user = await User.findById(req.userId).select('-passwordHash');
+        const user = await User.findById(req.userId);
         if (!user) {
             return res.status(404).json({ message: 'Користувача не знайдено' });
         }
-
-        let decryptedPassword = "";
-        try {
-            decryptedPassword = decrypt(user.encryptedPassword);
-        } catch (e) {
-            console.error("Помилка розшифрування пароля:", e.message);
+        if (user.role !== 'admin') {
+            return res.status(403).json({ message: 'Доступ заборонено' });
         }
+        next();
+    } catch (error) {
+        res.status(500).json({ message: 'Помилка сервера', error: error.message });
+    }
+};
 
-        res.json({
+
+app.get('/api/me', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('-passwordHash');
+    if (!user) {
+      return res.status(404).json({ message: 'Користувача не знайдено' });
+    }
+
+    let decryptedPassword = "";
+    try {
+      decryptedPassword = decrypt(user.encryptedPassword);
+    } catch (e) {
+      console.error("Помилка розшифрування пароля:", e.message);
+    }
+
+    res.json({
+      id: user._id,
       email: user.email,
       username: user.username,
       language: user.language || "uk",
@@ -215,10 +233,15 @@ app.get('/api/me', authMiddleware, async (req, res) => {
       totalTests: user.totalTests || 0,
       testHistory: user.testHistory || []
     });
-    } catch (error) {
-        res.status(500).json({ message: 'Помилка сервера', error: error.message });
-    }
+  } catch (error) {
+    res.status(500).json({ message: 'Помилка сервера', error: error.message });
+  }
 });
+
+app.use((req, res) => {
+  res.status(404).json({ message: 'Шлях не знайдено' });
+});
+
 
 app.patch('/api/me', authMiddleware, async (req, res) => {
   try {

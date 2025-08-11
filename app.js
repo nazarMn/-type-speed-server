@@ -118,7 +118,7 @@ var userSchema = new mongoose.Schema({
     passwordHash: { type: String, required: true },
     encryptedPassword: { type: String, required: true },
     date: { type: Date, default: Date.now },
-    // Нове поле - історія тестів (масив об'єктів)
+    role: { type: String, enum: ['user', 'admin'], default: 'user' },
     testHistory: [
         {
             cpm: Number,
@@ -127,7 +127,6 @@ var userSchema = new mongoose.Schema({
             date: { type: Date, default: Date.now }
         }
     ],
-    // Збережені середні значення за всі тести (агрегати)
     averageCPM: { type: Number, default: 0 },
     averageAccuracy: { type: Number, default: 0 },
     averageErrors: { type: Number, default: 0 },
@@ -193,7 +192,7 @@ app.post('/api/register', function (req, res) { return __awaiter(_this, void 0, 
         }
     });
 }); });
-app.post('/api/login', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
+app.post('/api/admin/login', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
     var _a, email, password, user, isPasswordValid, token, error_4;
     return __generator(this, function (_b) {
         switch (_b.label) {
@@ -208,20 +207,21 @@ app.post('/api/login', function (req, res) { return __awaiter(_this, void 0, voi
                 return [4 /*yield*/, User.findOne({ email: email })];
             case 2:
                 user = _b.sent();
-                if (!user) {
+                if (!user)
                     return [2 /*return*/, res.status(400).json({ message: 'Користувача не знайдено' })];
+                if (user.role !== 'admin') {
+                    return [2 /*return*/, res.status(403).json({ message: 'Ви не є адміністратором' })];
                 }
                 return [4 /*yield*/, bcrypt.compare(password, user.passwordHash)];
             case 3:
                 isPasswordValid = _b.sent();
-                if (!isPasswordValid) {
+                if (!isPasswordValid)
                     return [2 /*return*/, res.status(400).json({ message: 'Невірний пароль' })];
-                }
-                token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+                token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
                 res.status(200).json({
-                    message: 'Успішний вхід!',
+                    message: 'Успішний вхід в адмін-панель!',
                     token: token,
-                    user: { id: user._id, email: user.email, username: user.username }
+                    user: { id: user._id, email: user.email, username: user.username, role: user.role }
                 });
                 return [3 /*break*/, 5];
             case 4:
@@ -247,8 +247,34 @@ var authMiddleware = function (req, res, next) {
         res.status(401).json({ message: 'Невірний токен' });
     }
 };
+var adminMiddleware = function (req, res, next) { return __awaiter(_this, void 0, void 0, function () {
+    var user, error_5;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0:
+                _a.trys.push([0, 2, , 3]);
+                return [4 /*yield*/, User.findById(req.userId)];
+            case 1:
+                user = _a.sent();
+                if (!user) {
+                    return [2 /*return*/, res.status(404).json({ message: 'Користувача не знайдено' })];
+                }
+                if (user.role !== 'admin') {
+                    return [2 /*return*/, res.status(403).json({ message: 'Доступ заборонено' })];
+                }
+                next();
+                return [3 /*break*/, 3];
+            case 2:
+                error_5 = _a.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_5.message });
+                return [3 /*break*/, 3];
+            case 3: return [2 /*return*/];
+        }
+    });
+}); };
+// ПРИКЛАД
 app.get('/api/me', authMiddleware, function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var user, decryptedPassword, error_5;
+    var user, decryptedPassword, error_6;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
@@ -267,6 +293,7 @@ app.get('/api/me', authMiddleware, function (req, res) { return __awaiter(_this,
                     console.error("Помилка розшифрування пароля:", e.message);
                 }
                 res.json({
+                    id: user._id,
                     email: user.email,
                     username: user.username,
                     language: user.language || "uk",
@@ -280,15 +307,19 @@ app.get('/api/me', authMiddleware, function (req, res) { return __awaiter(_this,
                 });
                 return [3 /*break*/, 3];
             case 2:
-                error_5 = _a.sent();
-                res.status(500).json({ message: 'Помилка сервера', error: error_5.message });
+                error_6 = _a.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_6.message });
                 return [3 /*break*/, 3];
             case 3: return [2 /*return*/];
         }
     });
 }); });
+// Обовʼязково на всі помилки повертати JSON
+app.use(function (req, res) {
+    res.status(404).json({ message: 'Шлях не знайдено' });
+});
 app.patch('/api/me', authMiddleware, function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var username, user, error_6;
+    var username, user, error_7;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
@@ -313,8 +344,8 @@ app.patch('/api/me', authMiddleware, function (req, res) { return __awaiter(_thi
                 });
                 return [3 /*break*/, 4];
             case 3:
-                error_6 = _a.sent();
-                res.status(500).json({ message: 'Помилка сервера', error: error_6.message });
+                error_7 = _a.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_7.message });
                 return [3 /*break*/, 4];
             case 4: return [2 /*return*/];
         }
@@ -329,7 +360,7 @@ var dailyLeaderSchema = new mongoose.Schema({
 });
 var DailyLeader = mongoose.model("DailyLeader", dailyLeaderSchema);
 app.post('/api/me/test-result', authMiddleware, function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var _a, cpm, accuracy, errors, user, oldTotal, oldAvgCPM, oldAvgAccuracy, oldAvgErrors, newTotal, today, newLeader, leadersToday, toDelete, deleteIds, error_7;
+    var _a, cpm, accuracy, errors, user, oldTotal, oldAvgCPM, oldAvgAccuracy, oldAvgErrors, newTotal, today, newLeader, leadersToday, toDelete, deleteIds, error_8;
     return __generator(this, function (_b) {
         switch (_b.label) {
             case 0:
@@ -343,7 +374,6 @@ app.post('/api/me/test-result', authMiddleware, function (req, res) { return __a
                 user = _b.sent();
                 if (!user)
                     return [2 /*return*/, res.status(404).json({ message: 'Користувача не знайдено' })];
-                // 1️⃣ Збереження в історію користувача
                 user.testHistory.unshift({ cpm: cpm, accuracy: accuracy, errors: errors, date: new Date() });
                 if (user.testHistory.length > 5) {
                     user.testHistory = user.testHistory.slice(0, 5);
@@ -395,9 +425,9 @@ app.post('/api/me/test-result', authMiddleware, function (req, res) { return __a
                 });
                 return [3 /*break*/, 8];
             case 7:
-                error_7 = _b.sent();
-                console.error(error_7);
-                res.status(500).json({ message: 'Помилка сервера', error: error_7.message });
+                error_8 = _b.sent();
+                console.error(error_8);
+                res.status(500).json({ message: 'Помилка сервера', error: error_8.message });
                 return [3 /*break*/, 8];
             case 8: return [2 /*return*/];
         }
@@ -429,7 +459,7 @@ var transporter = nodemailer.createTransport({
     }
 });
 app.post('/api/magic-link', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var email, user, token, link, error_8;
+    var email, user, token, link, error_9;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
@@ -456,8 +486,8 @@ app.post('/api/magic-link', function (req, res) { return __awaiter(_this, void 0
                 res.status(200).json({ message: 'Magic link відправлено на email' });
                 return [3 /*break*/, 5];
             case 4:
-                error_8 = _a.sent();
-                res.status(500).json({ message: 'Помилка сервера', error: error_8.message });
+                error_9 = _a.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_9.message });
                 return [3 /*break*/, 5];
             case 5: return [2 /*return*/];
         }
@@ -469,7 +499,7 @@ function generateCode(length) {
     return Math.floor(Math.pow(10, (length - 1)) + Math.random() * 9 * Math.pow(10, (length - 1))).toString();
 }
 app.post('/api/send-reset-code', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var email, user, code, error_9;
+    var email, user, code, error_10;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
@@ -498,15 +528,15 @@ app.post('/api/send-reset-code', function (req, res) { return __awaiter(_this, v
                 res.json({ message: 'Код підтвердження відправлено на email' });
                 return [3 /*break*/, 5];
             case 4:
-                error_9 = _a.sent();
-                res.status(500).json({ message: 'Помилка сервера', error: error_9.message });
+                error_10 = _a.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_10.message });
                 return [3 /*break*/, 5];
             case 5: return [2 /*return*/];
         }
     });
 }); });
 app.post('/api/reset-password', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var _a, email, code, newPassword, savedCode, salt, passwordHash, encryptedPassword, error_10;
+    var _a, email, code, newPassword, savedCode, salt, passwordHash, encryptedPassword, error_11;
     return __generator(this, function (_b) {
         switch (_b.label) {
             case 0:
@@ -535,8 +565,8 @@ app.post('/api/reset-password', function (req, res) { return __awaiter(_this, vo
                 res.json({ message: 'Пароль успішно змінено' });
                 return [3 /*break*/, 6];
             case 5:
-                error_10 = _b.sent();
-                res.status(500).json({ message: 'Помилка сервера', error: error_10.message });
+                error_11 = _b.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_11.message });
                 return [3 /*break*/, 6];
             case 6: return [2 /*return*/];
         }
