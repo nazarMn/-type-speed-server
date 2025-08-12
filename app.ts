@@ -7,14 +7,13 @@ const jwt = require('jsonwebtoken');
 const cryptos = require('crypto');
 
 
-mongoose.connect('mongodb+srv://root:9ZxY2VeU0Eqp6Hxl@cluster0.mjxa3iv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0', {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-}).then(() => {
+mongoose.connect('mongodb+srv://root:9ZxY2VeU0Eqp6Hxl@cluster0.mjxa3iv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
+  .then(() => {
     console.log('Connected to MongoDB');
-}).catch(err => {
+  })
+  .catch(err => {
     console.error('MongoDB connection error:', err);
-});
+  });
 
 app.use(cors());
 app.use(express.json());
@@ -84,7 +83,7 @@ const userSchema = new mongoose.Schema({
     averageErrors: { type: Number, default: 0 },
 
     totalTests: { type: Number, default: 0 }
-});
+},{ suppressReservedKeysWarning: true });
 
 
 const algorithm = 'aes-256-cbc';
@@ -276,7 +275,7 @@ const dailyLeaderSchema = new mongoose.Schema({
   accuracy: { type: Number, required: true },
   errors: { type: Number, required: true },
   date: { type: Date, default: Date.now }
-});
+},{ suppressReservedKeysWarning: true });
 
 const DailyLeader = mongoose.model("DailyLeader", dailyLeaderSchema);
 

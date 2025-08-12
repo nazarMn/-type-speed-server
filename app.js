@@ -42,12 +42,11 @@ var mongoose = require('mongoose');
 var bcrypt = require('bcryptjs');
 var jwt = require('jsonwebtoken');
 var cryptos = require('crypto');
-mongoose.connect('mongodb+srv://root:9ZxY2VeU0Eqp6Hxl@cluster0.mjxa3iv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0', {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-}).then(function () {
+mongoose.connect('mongodb+srv://root:9ZxY2VeU0Eqp6Hxl@cluster0.mjxa3iv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
+    .then(function () {
     console.log('Connected to MongoDB');
-}).catch(function (err) {
+})
+    .catch(function (err) {
     console.error('MongoDB connection error:', err);
 });
 app.use(cors());
@@ -131,7 +130,7 @@ var userSchema = new mongoose.Schema({
     averageAccuracy: { type: Number, default: 0 },
     averageErrors: { type: Number, default: 0 },
     totalTests: { type: Number, default: 0 }
-});
+}, { suppressReservedKeysWarning: true });
 var algorithm = 'aes-256-cbc';
 var key = Buffer.from(process.env.ENCRYPTION_KEY);
 var iv = Buffer.from(process.env.ENCRYPTION_IV);
@@ -272,7 +271,6 @@ var adminMiddleware = function (req, res, next) { return __awaiter(_this, void 0
         }
     });
 }); };
-// ПРИКЛАД
 app.get('/api/me', authMiddleware, function (req, res) { return __awaiter(_this, void 0, void 0, function () {
     var user, decryptedPassword, error_6;
     return __generator(this, function (_a) {
@@ -314,7 +312,6 @@ app.get('/api/me', authMiddleware, function (req, res) { return __awaiter(_this,
         }
     });
 }); });
-// Обовʼязково на всі помилки повертати JSON
 app.use(function (req, res) {
     res.status(404).json({ message: 'Шлях не знайдено' });
 });
@@ -357,7 +354,7 @@ var dailyLeaderSchema = new mongoose.Schema({
     accuracy: { type: Number, required: true },
     errors: { type: Number, required: true },
     date: { type: Date, default: Date.now }
-});
+}, { suppressReservedKeysWarning: true });
 var DailyLeader = mongoose.model("DailyLeader", dailyLeaderSchema);
 app.post('/api/me/test-result', authMiddleware, function (req, res) { return __awaiter(_this, void 0, void 0, function () {
     var _a, cpm, accuracy, errors, user, oldTotal, oldAvgCPM, oldAvgAccuracy, oldAvgErrors, newTotal, today, newLeader, leadersToday, toDelete, deleteIds, error_8;
