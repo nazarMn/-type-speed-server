@@ -304,6 +304,26 @@ app.post('/api/me/test-result', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Помилка сервера' });
   }
 });
+app.delete('/api/leaders/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Невірний ID лідера' });
+    }
+
+    const deleted = await DailyLeader.findByIdAndDelete(id);
+
+    if (!deleted) {
+      return res.status(404).json({ message: 'Лідер не знайдений' });
+    }
+
+    res.status(200).json({ message: 'Лідер успішно видалений' });
+  } catch (error) {
+    console.error('Помилка при видаленні лідера:', error);
+    res.status(500).json({ message: 'Помилка сервера' });
+  }
+});
 
 
 

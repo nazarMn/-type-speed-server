@@ -376,6 +376,33 @@ app.post('/api/me/test-result', authMiddleware, function (req, res) { return __a
         }
     });
 }); });
+app.delete('/api/leaders/:id', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
+    var id, deleted, error_8;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0:
+                _a.trys.push([0, 2, , 3]);
+                id = req.params.id;
+                if (!mongoose.Types.ObjectId.isValid(id)) {
+                    return [2 /*return*/, res.status(400).json({ message: 'Невірний ID лідера' })];
+                }
+                return [4 /*yield*/, DailyLeader.findByIdAndDelete(id)];
+            case 1:
+                deleted = _a.sent();
+                if (!deleted) {
+                    return [2 /*return*/, res.status(404).json({ message: 'Лідер не знайдений' })];
+                }
+                res.status(200).json({ message: 'Лідер успішно видалений' });
+                return [3 /*break*/, 3];
+            case 2:
+                error_8 = _a.sent();
+                console.error('Помилка при видаленні лідера:', error_8);
+                res.status(500).json({ message: 'Помилка сервера' });
+                return [3 /*break*/, 3];
+            case 3: return [2 /*return*/];
+        }
+    });
+}); });
 app.get("/api/leaders/today", function (req, res) { return __awaiter(_this, void 0, void 0, function () {
     var today, leaders;
     return __generator(this, function (_a) {
@@ -402,7 +429,7 @@ var transporter = nodemailer.createTransport({
     }
 });
 app.post('/api/magic-link', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var email, user, token, link, error_8;
+    var email, user, token, link, error_9;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
@@ -429,8 +456,8 @@ app.post('/api/magic-link', function (req, res) { return __awaiter(_this, void 0
                 res.status(200).json({ message: 'Magic link відправлено на email' });
                 return [3 /*break*/, 5];
             case 4:
-                error_8 = _a.sent();
-                res.status(500).json({ message: 'Помилка сервера', error: error_8.message });
+                error_9 = _a.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_9.message });
                 return [3 /*break*/, 5];
             case 5: return [2 /*return*/];
         }
@@ -442,7 +469,7 @@ function generateCode(length) {
     return Math.floor(Math.pow(10, (length - 1)) + Math.random() * 9 * Math.pow(10, (length - 1))).toString();
 }
 app.post('/api/send-reset-code', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var email, user, code, error_9;
+    var email, user, code, error_10;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
@@ -471,15 +498,15 @@ app.post('/api/send-reset-code', function (req, res) { return __awaiter(_this, v
                 res.json({ message: 'Код підтвердження відправлено на email' });
                 return [3 /*break*/, 5];
             case 4:
-                error_9 = _a.sent();
-                res.status(500).json({ message: 'Помилка сервера', error: error_9.message });
+                error_10 = _a.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_10.message });
                 return [3 /*break*/, 5];
             case 5: return [2 /*return*/];
         }
     });
 }); });
 app.post('/api/reset-password', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var _a, email, code, newPassword, savedCode, salt, passwordHash, encryptedPassword, error_10;
+    var _a, email, code, newPassword, savedCode, salt, passwordHash, encryptedPassword, error_11;
     return __generator(this, function (_b) {
         switch (_b.label) {
             case 0:
@@ -508,8 +535,8 @@ app.post('/api/reset-password', function (req, res) { return __awaiter(_this, vo
                 res.json({ message: 'Пароль успішно змінено' });
                 return [3 /*break*/, 6];
             case 5:
-                error_10 = _b.sent();
-                res.status(500).json({ message: 'Помилка сервера', error: error_10.message });
+                error_11 = _b.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_11.message });
                 return [3 /*break*/, 6];
             case 6: return [2 /*return*/];
         }
