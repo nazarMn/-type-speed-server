@@ -67,8 +67,7 @@ const userSchema = new mongoose.Schema({
     encryptedPassword: { type: String, required: true },
     date: { type: Date, default: Date.now },
 
-     role: { type: String, enum: ['user', 'admin'], default: 'user' },
-
+    // Нове поле - історія тестів (масив об'єктів)
     testHistory: [
       {
         cpm: Number,
@@ -78,13 +77,13 @@ const userSchema = new mongoose.Schema({
       }
     ],
 
+     // Збережені середні значення за всі тести (агрегати)
     averageCPM: { type: Number, default: 0 },
     averageAccuracy: { type: Number, default: 0 },
     averageErrors: { type: Number, default: 0 },
 
     totalTests: { type: Number, default: 0 }
-},{ suppressReservedKeysWarning: true });
-
+});
 
 const algorithm = 'aes-256-cbc';
 const key = Buffer.from(process.env.ENCRYPTION_KEY!);
@@ -123,7 +122,7 @@ app.post('/api/register', async (req, res) => {
 
         const salt = await bcrypt.genSalt(10);
         const passwordHash = await bcrypt.hash(password, salt);
-        const encryptedPassword = encrypt(password); 
+        const encryptedPassword = encrypt(password); // Зашифрувати пароль
 
         const newUser = new User({ email, username, passwordHash, encryptedPassword });
         await newUser.save();
@@ -134,38 +133,6 @@ app.post('/api/register', async (req, res) => {
             message: 'Користувача створено!',
             token,
             user: { id: newUser._id, email: newUser.email, username: newUser.username }
-        });
-
-    } catch (error) {
-        res.status(500).json({ message: 'Помилка сервера', error: error.message });
-    }
-});
-
-
-app.post('/api/admin/login', async (req, res) => {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-        return res.status(400).json({ message: 'Всі поля обовʼязкові!' });
-    }
-
-    try {
-        const user = await User.findOne({ email });
-        if (!user) return res.status(400).json({ message: 'Користувача не знайдено' });
-
-        if (user.role !== 'admin') {
-            return res.status(403).json({ message: 'Ви не є адміністратором' });
-        }
-
-        const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-        if (!isPasswordValid) return res.status(400).json({ message: 'Невірний пароль' });
-
-        const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
-
-        res.status(200).json({
-            message: 'Успішний вхід в адмін-панель!',
-            token,
-            user: { id: user._id, email: user.email, username: user.username, role: user.role }
         });
 
     } catch (error) {
@@ -206,53 +173,43 @@ app.post('/api/login', async (req, res) => {
 });
 
 
+
 const authMiddleware = (req, res, next) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) {
-        return res.status(401).json({ message: 'Немає токена' });
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "Немає токена" });
     }
 
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.userId = decoded.id;
-        next();
-    } catch (error) {
-        res.status(401).json({ message: 'Невірний токен' });
-    }
+    const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    req.userId = decoded.id;
+
+    next();
+  } catch (error) {
+    console.error("Auth error:", error);
+    return res.status(401).json({ message: "Невірний токен" });
+  }
 };
 
-const adminMiddleware = async (req, res, next) => {
-    try {
-        const user = await User.findById(req.userId);
-        if (!user) {
-            return res.status(404).json({ message: 'Користувача не знайдено' });
-        }
-        if (user.role !== 'admin') {
-            return res.status(403).json({ message: 'Доступ заборонено' });
-        }
-        next();
-    } catch (error) {
-        res.status(500).json({ message: 'Помилка сервера', error: error.message });
-    }
-};
 
 
 app.get('/api/me', authMiddleware, async (req, res) => {
-  try {
-    const user = await User.findById(req.userId).select('-passwordHash');
-    if (!user) {
-      return res.status(404).json({ message: 'Користувача не знайдено' });
-    }
-
-    let decryptedPassword = "";
     try {
-      decryptedPassword = decrypt(user.encryptedPassword);
-    } catch (e) {
-      console.error("Помилка розшифрування пароля:", e.message);
-    }
+        const user = await User.findById(req.userId).select('-passwordHash');
+        if (!user) {
+            return res.status(404).json({ message: 'Користувача не знайдено' });
+        }
 
-    res.json({
-      id: user._id,
+        let decryptedPassword = "";
+        try {
+            decryptedPassword = decrypt(user.encryptedPassword);
+        } catch (e) {
+            console.error("Помилка розшифрування пароля:", e.message);
+        }
+
+        res.json({
       email: user.email,
       username: user.username,
       language: user.language || "uk",
@@ -264,13 +221,9 @@ app.get('/api/me', authMiddleware, async (req, res) => {
       totalTests: user.totalTests || 0,
       testHistory: user.testHistory || []
     });
-  } catch (error) {
-    res.status(500).json({ message: 'Помилка сервера', error: error.message });
-  }
-});
-
-app.use((req, res) => {
-  res.status(404).json({ message: 'Шлях не знайдено' });
+    } catch (error) {
+        res.status(500).json({ message: 'Помилка сервера', error: error.message });
+    }
 });
 
 
@@ -307,78 +260,52 @@ const dailyLeaderSchema = new mongoose.Schema({
   accuracy: { type: Number, required: true },
   errors: { type: Number, required: true },
   date: { type: Date, default: Date.now }
-},{ suppressReservedKeysWarning: true });
+});
 
 const DailyLeader = mongoose.model("DailyLeader", dailyLeaderSchema);
-
-
-
 
 app.post('/api/me/test-result', authMiddleware, async (req, res) => {
   try {
     const { cpm, accuracy, errors } = req.body;
 
-    if (typeof cpm !== 'number' || typeof accuracy !== 'number' || typeof errors !== 'number') {
-      return res.status(400).json({ message: 'Невірні дані тесту' });
+    if (cpm === undefined || accuracy === undefined || errors === undefined) {
+      return res.status(400).json({ message: 'Всі поля обовʼязкові' });
     }
 
     const user = await User.findById(req.userId);
-    if (!user) return res.status(404).json({ message: 'Користувача не знайдено' });
-
-    user.testHistory.unshift({ cpm, accuracy, errors, date: new Date() });
-    if (user.testHistory.length > 5) {
-      user.testHistory = user.testHistory.slice(0, 5);
+    if (!user) {
+      return res.status(404).json({ message: 'Користувача не знайдено' });
     }
 
-    const oldTotal = user.totalTests || 0;
-    const oldAvgCPM = user.averageCPM || 0;
-    const oldAvgAccuracy = user.averageAccuracy || 0;
-    const oldAvgErrors = user.averageErrors || 0;
-    const newTotal = oldTotal + 1;
+    user.testHistory.push({ cpm, accuracy, errors });
 
-    user.averageCPM = (oldAvgCPM * oldTotal + cpm) / newTotal;
-    user.averageAccuracy = (oldAvgAccuracy * oldTotal + accuracy) / newTotal;
-    user.averageErrors = (oldAvgErrors * oldTotal + errors) / newTotal;
-    user.totalTests = newTotal;
+    user.totalTests += 1;
+    user.averageCPM =
+      (user.averageCPM * (user.totalTests - 1) + cpm) / user.totalTests;
+    user.averageAccuracy =
+      (user.averageAccuracy * (user.totalTests - 1) + accuracy) /
+      user.totalTests;
+    user.averageErrors =
+      (user.averageErrors * (user.totalTests - 1) + errors) /
+      user.totalTests;
 
     await user.save();
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const newLeader = new DailyLeader({
+    await DailyLeader.create({
       username: user.username,
       cpm,
       accuracy,
       errors,
-      date: new Date()
-    });
-    await newLeader.save();
-
-    const leadersToday = await DailyLeader.find({
-      date: { $gte: today }
-    }).sort({ cpm: -1, accuracy: -1 });
-
-    if (leadersToday.length > 5) {
-      const toDelete = leadersToday.slice(5); 
-      const deleteIds = toDelete.map(l => l._id);
-      await DailyLeader.deleteMany({ _id: { $in: deleteIds } });
-    }
-
-    res.json({
-      message: 'Результат тесту збережено',
-      testHistory: user.testHistory,
-      averageCPM: user.averageCPM,
-      averageAccuracy: user.averageAccuracy,
-      averageErrors: user.averageErrors,
-      totalTests: user.totalTests
     });
 
+    res.status(200).json({ message: 'Результат успішно збережено' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Помилка сервера', error: error.message });
+    console.error('❌ Помилка при збереженні результату:', error);
+    res.status(500).json({ message: 'Помилка сервера' });
   }
 });
+
+
 
 
 app.get("/api/leaders/today", async (req, res) => {
@@ -391,7 +318,6 @@ app.get("/api/leaders/today", async (req, res) => {
 
   res.json(leaders);
 });
-
 
 
 

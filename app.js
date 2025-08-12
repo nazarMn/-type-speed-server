@@ -117,7 +117,7 @@ var userSchema = new mongoose.Schema({
     passwordHash: { type: String, required: true },
     encryptedPassword: { type: String, required: true },
     date: { type: Date, default: Date.now },
-    role: { type: String, enum: ['user', 'admin'], default: 'user' },
+    // Нове поле - історія тестів (масив об'єктів)
     testHistory: [
         {
             cpm: Number,
@@ -126,11 +126,12 @@ var userSchema = new mongoose.Schema({
             date: { type: Date, default: Date.now }
         }
     ],
+    // Збережені середні значення за всі тести (агрегати)
     averageCPM: { type: Number, default: 0 },
     averageAccuracy: { type: Number, default: 0 },
     averageErrors: { type: Number, default: 0 },
     totalTests: { type: Number, default: 0 }
-}, { suppressReservedKeysWarning: true });
+});
 var algorithm = 'aes-256-cbc';
 var key = Buffer.from(process.env.ENCRYPTION_KEY);
 var iv = Buffer.from(process.env.ENCRYPTION_IV);
@@ -191,48 +192,8 @@ app.post('/api/register', function (req, res) { return __awaiter(_this, void 0, 
         }
     });
 }); });
-app.post('/api/admin/login', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var _a, email, password, user, isPasswordValid, token, error_4;
-    return __generator(this, function (_b) {
-        switch (_b.label) {
-            case 0:
-                _a = req.body, email = _a.email, password = _a.password;
-                if (!email || !password) {
-                    return [2 /*return*/, res.status(400).json({ message: 'Всі поля обовʼязкові!' })];
-                }
-                _b.label = 1;
-            case 1:
-                _b.trys.push([1, 4, , 5]);
-                return [4 /*yield*/, User.findOne({ email: email })];
-            case 2:
-                user = _b.sent();
-                if (!user)
-                    return [2 /*return*/, res.status(400).json({ message: 'Користувача не знайдено' })];
-                if (user.role !== 'admin') {
-                    return [2 /*return*/, res.status(403).json({ message: 'Ви не є адміністратором' })];
-                }
-                return [4 /*yield*/, bcrypt.compare(password, user.passwordHash)];
-            case 3:
-                isPasswordValid = _b.sent();
-                if (!isPasswordValid)
-                    return [2 /*return*/, res.status(400).json({ message: 'Невірний пароль' })];
-                token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
-                res.status(200).json({
-                    message: 'Успішний вхід в адмін-панель!',
-                    token: token,
-                    user: { id: user._id, email: user.email, username: user.username, role: user.role }
-                });
-                return [3 /*break*/, 5];
-            case 4:
-                error_4 = _b.sent();
-                res.status(500).json({ message: 'Помилка сервера', error: error_4.message });
-                return [3 /*break*/, 5];
-            case 5: return [2 /*return*/];
-        }
-    });
-}); });
 app.post('/api/login', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var _a, email, password, user, isPasswordValid, token, error_5;
+    var _a, email, password, user, isPasswordValid, token, error_4;
     return __generator(this, function (_b) {
         switch (_b.label) {
             case 0:
@@ -263,55 +224,31 @@ app.post('/api/login', function (req, res) { return __awaiter(_this, void 0, voi
                 });
                 return [3 /*break*/, 5];
             case 4:
-                error_5 = _b.sent();
-                res.status(500).json({ message: 'Помилка сервера', error: error_5.message });
+                error_4 = _b.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_4.message });
                 return [3 /*break*/, 5];
             case 5: return [2 /*return*/];
         }
     });
 }); });
 var authMiddleware = function (req, res, next) {
-    var _a;
-    var token = (_a = req.headers.authorization) === null || _a === void 0 ? void 0 : _a.split(' ')[1];
-    if (!token) {
-        return res.status(401).json({ message: 'Немає токена' });
-    }
     try {
+        var authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+            return res.status(401).json({ message: "Немає токена" });
+        }
+        var token = authHeader.split(" ")[1];
         var decoded = jwt.verify(token, process.env.JWT_SECRET);
         req.userId = decoded.id;
         next();
     }
     catch (error) {
-        res.status(401).json({ message: 'Невірний токен' });
+        console.error("Auth error:", error);
+        return res.status(401).json({ message: "Невірний токен" });
     }
 };
-var adminMiddleware = function (req, res, next) { return __awaiter(_this, void 0, void 0, function () {
-    var user, error_6;
-    return __generator(this, function (_a) {
-        switch (_a.label) {
-            case 0:
-                _a.trys.push([0, 2, , 3]);
-                return [4 /*yield*/, User.findById(req.userId)];
-            case 1:
-                user = _a.sent();
-                if (!user) {
-                    return [2 /*return*/, res.status(404).json({ message: 'Користувача не знайдено' })];
-                }
-                if (user.role !== 'admin') {
-                    return [2 /*return*/, res.status(403).json({ message: 'Доступ заборонено' })];
-                }
-                next();
-                return [3 /*break*/, 3];
-            case 2:
-                error_6 = _a.sent();
-                res.status(500).json({ message: 'Помилка сервера', error: error_6.message });
-                return [3 /*break*/, 3];
-            case 3: return [2 /*return*/];
-        }
-    });
-}); };
 app.get('/api/me', authMiddleware, function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var user, decryptedPassword, error_7;
+    var user, decryptedPassword, error_5;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
@@ -330,7 +267,6 @@ app.get('/api/me', authMiddleware, function (req, res) { return __awaiter(_this,
                     console.error("Помилка розшифрування пароля:", e.message);
                 }
                 res.json({
-                    id: user._id,
                     email: user.email,
                     username: user.username,
                     language: user.language || "uk",
@@ -344,18 +280,15 @@ app.get('/api/me', authMiddleware, function (req, res) { return __awaiter(_this,
                 });
                 return [3 /*break*/, 3];
             case 2:
-                error_7 = _a.sent();
-                res.status(500).json({ message: 'Помилка сервера', error: error_7.message });
+                error_5 = _a.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_5.message });
                 return [3 /*break*/, 3];
             case 3: return [2 /*return*/];
         }
     });
 }); });
-app.use(function (req, res) {
-    res.status(404).json({ message: 'Шлях не знайдено' });
-});
 app.patch('/api/me', authMiddleware, function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var username, user, error_8;
+    var username, user, error_6;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
@@ -380,8 +313,8 @@ app.patch('/api/me', authMiddleware, function (req, res) { return __awaiter(_thi
                 });
                 return [3 /*break*/, 4];
             case 3:
-                error_8 = _a.sent();
-                res.status(500).json({ message: 'Помилка сервера', error: error_8.message });
+                error_6 = _a.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_6.message });
                 return [3 /*break*/, 4];
             case 4: return [2 /*return*/];
         }
@@ -393,79 +326,57 @@ var dailyLeaderSchema = new mongoose.Schema({
     accuracy: { type: Number, required: true },
     errors: { type: Number, required: true },
     date: { type: Date, default: Date.now }
-}, { suppressReservedKeysWarning: true });
+});
 var DailyLeader = mongoose.model("DailyLeader", dailyLeaderSchema);
 app.post('/api/me/test-result', authMiddleware, function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var _a, cpm, accuracy, errors, user, oldTotal, oldAvgCPM, oldAvgAccuracy, oldAvgErrors, newTotal, today, newLeader, leadersToday, toDelete, deleteIds, error_9;
+    var _a, cpm, accuracy, errors, user, error_7;
     return __generator(this, function (_b) {
         switch (_b.label) {
             case 0:
-                _b.trys.push([0, 7, , 8]);
+                _b.trys.push([0, 4, , 5]);
                 _a = req.body, cpm = _a.cpm, accuracy = _a.accuracy, errors = _a.errors;
-                if (typeof cpm !== 'number' || typeof accuracy !== 'number' || typeof errors !== 'number') {
-                    return [2 /*return*/, res.status(400).json({ message: 'Невірні дані тесту' })];
+                if (cpm === undefined || accuracy === undefined || errors === undefined) {
+                    return [2 /*return*/, res.status(400).json({ message: 'Всі поля обовʼязкові' })];
                 }
                 return [4 /*yield*/, User.findById(req.userId)];
             case 1:
                 user = _b.sent();
-                if (!user)
+                if (!user) {
                     return [2 /*return*/, res.status(404).json({ message: 'Користувача не знайдено' })];
-                user.testHistory.unshift({ cpm: cpm, accuracy: accuracy, errors: errors, date: new Date() });
-                if (user.testHistory.length > 5) {
-                    user.testHistory = user.testHistory.slice(0, 5);
                 }
-                oldTotal = user.totalTests || 0;
-                oldAvgCPM = user.averageCPM || 0;
-                oldAvgAccuracy = user.averageAccuracy || 0;
-                oldAvgErrors = user.averageErrors || 0;
-                newTotal = oldTotal + 1;
-                user.averageCPM = (oldAvgCPM * oldTotal + cpm) / newTotal;
-                user.averageAccuracy = (oldAvgAccuracy * oldTotal + accuracy) / newTotal;
-                user.averageErrors = (oldAvgErrors * oldTotal + errors) / newTotal;
-                user.totalTests = newTotal;
+                // Додати результат у testHistory
+                user.testHistory.push({ cpm: cpm, accuracy: accuracy, errors: errors });
+                // Оновити статистику
+                user.totalTests += 1;
+                user.averageCPM =
+                    (user.averageCPM * (user.totalTests - 1) + cpm) / user.totalTests;
+                user.averageAccuracy =
+                    (user.averageAccuracy * (user.totalTests - 1) + accuracy) /
+                        user.totalTests;
+                user.averageErrors =
+                    (user.averageErrors * (user.totalTests - 1) + errors) /
+                        user.totalTests;
                 return [4 /*yield*/, user.save()];
             case 2:
                 _b.sent();
-                today = new Date();
-                today.setHours(0, 0, 0, 0);
-                newLeader = new DailyLeader({
-                    username: user.username,
-                    cpm: cpm,
-                    accuracy: accuracy,
-                    errors: errors,
-                    date: new Date()
-                });
-                return [4 /*yield*/, newLeader.save()];
+                // Додати у щоденний рейтинг
+                return [4 /*yield*/, DailyLeader.create({
+                        username: user.username,
+                        cpm: cpm,
+                        accuracy: accuracy,
+                        errors: errors,
+                    })];
             case 3:
+                // Додати у щоденний рейтинг
                 _b.sent();
-                return [4 /*yield*/, DailyLeader.find({
-                        date: { $gte: today }
-                    }).sort({ cpm: -1, accuracy: -1 })];
+                res.status(200).json({ message: 'Результат успішно збережено' });
+                return [3 /*break*/, 5];
             case 4:
-                leadersToday = _b.sent();
-                if (!(leadersToday.length > 5)) return [3 /*break*/, 6];
-                toDelete = leadersToday.slice(5);
-                deleteIds = toDelete.map(function (l) { return l._id; });
-                return [4 /*yield*/, DailyLeader.deleteMany({ _id: { $in: deleteIds } })];
-            case 5:
-                _b.sent();
-                _b.label = 6;
-            case 6:
-                res.json({
-                    message: 'Результат тесту збережено',
-                    testHistory: user.testHistory,
-                    averageCPM: user.averageCPM,
-                    averageAccuracy: user.averageAccuracy,
-                    averageErrors: user.averageErrors,
-                    totalTests: user.totalTests
-                });
-                return [3 /*break*/, 8];
-            case 7:
-                error_9 = _b.sent();
-                console.error(error_9);
-                res.status(500).json({ message: 'Помилка сервера', error: error_9.message });
-                return [3 /*break*/, 8];
-            case 8: return [2 /*return*/];
+                error_7 = _b.sent();
+                console.error('❌ Помилка при збереженні результату:', error_7);
+                res.status(500).json({ message: 'Помилка сервера' });
+                return [3 /*break*/, 5];
+            case 5: return [2 /*return*/];
         }
     });
 }); });
@@ -495,7 +406,7 @@ var transporter = nodemailer.createTransport({
     }
 });
 app.post('/api/magic-link', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var email, user, token, link, error_10;
+    var email, user, token, link, error_8;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
@@ -522,8 +433,8 @@ app.post('/api/magic-link', function (req, res) { return __awaiter(_this, void 0
                 res.status(200).json({ message: 'Magic link відправлено на email' });
                 return [3 /*break*/, 5];
             case 4:
-                error_10 = _a.sent();
-                res.status(500).json({ message: 'Помилка сервера', error: error_10.message });
+                error_8 = _a.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_8.message });
                 return [3 /*break*/, 5];
             case 5: return [2 /*return*/];
         }
@@ -535,7 +446,7 @@ function generateCode(length) {
     return Math.floor(Math.pow(10, (length - 1)) + Math.random() * 9 * Math.pow(10, (length - 1))).toString();
 }
 app.post('/api/send-reset-code', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var email, user, code, error_11;
+    var email, user, code, error_9;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
@@ -564,15 +475,15 @@ app.post('/api/send-reset-code', function (req, res) { return __awaiter(_this, v
                 res.json({ message: 'Код підтвердження відправлено на email' });
                 return [3 /*break*/, 5];
             case 4:
-                error_11 = _a.sent();
-                res.status(500).json({ message: 'Помилка сервера', error: error_11.message });
+                error_9 = _a.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_9.message });
                 return [3 /*break*/, 5];
             case 5: return [2 /*return*/];
         }
     });
 }); });
 app.post('/api/reset-password', function (req, res) { return __awaiter(_this, void 0, void 0, function () {
-    var _a, email, code, newPassword, savedCode, salt, passwordHash, encryptedPassword, error_12;
+    var _a, email, code, newPassword, savedCode, salt, passwordHash, encryptedPassword, error_10;
     return __generator(this, function (_b) {
         switch (_b.label) {
             case 0:
@@ -601,8 +512,8 @@ app.post('/api/reset-password', function (req, res) { return __awaiter(_this, vo
                 res.json({ message: 'Пароль успішно змінено' });
                 return [3 /*break*/, 6];
             case 5:
-                error_12 = _b.sent();
-                res.status(500).json({ message: 'Помилка сервера', error: error_12.message });
+                error_10 = _b.sent();
+                res.status(500).json({ message: 'Помилка сервера', error: error_10.message });
                 return [3 /*break*/, 6];
             case 6: return [2 /*return*/];
         }
