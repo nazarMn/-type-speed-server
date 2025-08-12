@@ -344,9 +344,7 @@ app.post('/api/me/test-result', authMiddleware, function (req, res) { return __a
                 if (!user) {
                     return [2 /*return*/, res.status(404).json({ message: 'Користувача не знайдено' })];
                 }
-                // Додати результат у testHistory
                 user.testHistory.push({ cpm: cpm, accuracy: accuracy, errors: errors });
-                // Оновити статистику
                 user.totalTests += 1;
                 user.averageCPM =
                     (user.averageCPM * (user.totalTests - 1) + cpm) / user.totalTests;
@@ -359,7 +357,6 @@ app.post('/api/me/test-result', authMiddleware, function (req, res) { return __a
                 return [4 /*yield*/, user.save()];
             case 2:
                 _b.sent();
-                // Додати у щоденний рейтинг
                 return [4 /*yield*/, DailyLeader.create({
                         username: user.username,
                         cpm: cpm,
@@ -367,7 +364,6 @@ app.post('/api/me/test-result', authMiddleware, function (req, res) { return __a
                         errors: errors,
                     })];
             case 3:
-                // Додати у щоденний рейтинг
                 _b.sent();
                 res.status(200).json({ message: 'Результат успішно збережено' });
                 return [3 /*break*/, 5];
